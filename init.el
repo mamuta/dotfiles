@@ -5,10 +5,10 @@
 ;;----"M-x transient-mark-mode"で選択範囲の色を出すか切り替える----
 ;;; Code:
 (column-number-mode t)
-(global-linum-mode t)
+;; (global-linum-mode t)
 ;;----"M-x linum-mode"で切り替え----x
-(display-time)
-(setq display-time-day-and-date t)
+;; (display-time)
+;; (setq display-time-day-and-date t)
 (show-paren-mode 1)
 (setq confirm-kill-emacs nil)
 (setq default-frame-alist '((width . 80) (height . 30)))
@@ -68,6 +68,19 @@
 (setq backup-directory-alist `((".*" . "~/.emacs.d/backup/")))
 (setq auto-save-file-name-transforms `((".*", "~/.emacs.d/backup/" t)))
 
+(eval-after-load "dired"
+  '(progn
+     (defadvice dired-advertised-find-file (around dired-subst-directory activate)
+       "Replace current buffer if file is a directory."
+       (interactive)
+       (let* ((orig (current-buffer))
+              ;; (filename (dired-get-filename))
+              (filename (dired-get-filename t t))
+              (bye-p (file-directory-p filename)))
+         ad-do-it
+         (when (and bye-p (not (string-match "[/\\\\]\\.$" filename)))
+                          (kill-buffer orig))))))
+
 ;;----MELPAレポジトリ追加(emacs24以降)----
 (require 'package)
 (setq package-archives `(("melpa" . "http://melpa.org/packages/")))
@@ -81,7 +94,7 @@
 ;;     (package-refresh-contents) 
 ;;   )
 (defvar initflag 0)
-(defvar my-package '(zenburn-theme verilog-mode web-mode auto-complete flycheck go-mode badwolf-theme basic-theme nyan-mode flycheck-pos-tip ac-dabbrev c-eldoc))
+(defvar my-package '(zenburn-theme verilog-mode web-mode auto-complete flycheck go-mode badwolf-theme basic-theme nyan-mode flycheck-pos-tip ac-dabbrev c-eldoc ac-php vimrc-mode nlinum nlinum-relative undo-tree anzu))
 (dolist (package my-package)
   (unless (package-installed-p package)
     (progn
@@ -94,7 +107,7 @@
     )
   )
 
-(require 'nyan-mode)
+;; (require 'nyan-mode)
 (setq nyan-bar-length 16) 
 (nyan-mode)
 (nyan-start-animation)
@@ -102,7 +115,8 @@
 ;;----web-mode----
 ;;----"http://yanmoo.blogspot.jp/2013/06/html5web-mode.html"----
 (add-to-list 'auto-mode-alist '("\\.\\([xps]html\\|html\\|tpl\\|php\\|js\\)\\'" . web-mode))
-;; (add-to-list 'web-mode-content-types' ("php" . "\\.php\\'")) 
+;; (add-to-list 'web-mode-content-types' ("php" . "\\.php\\'"))
+(setq-default indent-tabs-mode nil)
 (autoload 'web-mode "web-mode" nil t)
 (defun my-web-mode-hook ()
   "Hooks for Web mode."
@@ -111,12 +125,18 @@
   ;;----CSSのインデント----
   (setq web-mode-css-indent-offset 2)
   ;;----PHP,JSなどのインデント----
-  (setq web-mode-code-indent-offset 2)
+  (setq web-mode-code-indent-offset 4)
   ;;----<?phpのしたのインデント----
-  (setq web-mode-block-padding 2)
+  (setq web-mode-block-padding 0)
   ;;----コメントのスタイル----
   (setq web-mode-comment-style 2)
-  ;; (setq web-mode-php-indent-offset 2) 
+  ;; (setq web-mode-php-indent-offset 2)
+  
+  ;; (require 'ac-php)
+  ;; (setq ac-sources  '(ac-source-php ) )
+  ;; (yas-global-mode 1)
+  ;; (define-key php-mode-map  (kbd "C-]") 'ac-php-find-symbol-at-point)   ;goto define
+  ;; (define-key php-mode-map  (kbd "C-t") 'ac-php-location-stack-back   ) ;go back
   )
 (add-hook 'web-mode-hook  'my-web-mode-hook)
 ;; (eval-after-load "web-mode"
@@ -131,7 +151,8 @@
   (load-theme 'monokai t)
   )
  (t
-  (load-theme 'zenburn t)
+  (load-theme 'badwolf t)
+  (load-theme 'planet t)
   )
  )
 
@@ -139,7 +160,7 @@
 ;;----auto-complete.el----
 ;;----"http://fukuyama.co/emacs-auto-complete"----
 ;;----別ファイルなしでもdict読み込めるかもしれない----
-(require 'auto-complete)
+;; (require 'auto-complete)
 (require 'auto-complete-config)
 (add-to-list 'ac-dictionary-directories "~/.emacs.d/lisp/dict")
 ;; (defvar web-mode-ac-sources-alist
@@ -164,6 +185,35 @@
 ;; (package-install 'flycheck)
 (global-flycheck-mode)
 ;; (add-hooautocok 'after-init-hook #'global-flycheck-mode)
+
+
+(flycheck-define-checker web-mode-php-phpcs
+  "A PHP style checker using PHP Code Sniffer.
+
+Needs PHP Code Sniffer 2.6 or newer.
+
+See URL `http://pear.php.net/package/PHP_CodeSniffer/'."
+  :command ("phpcs" "--report=checkstyle"
+            (option "--standard=" flycheck-phpcs-standard concat)
+            ;; Pass original file name to phpcs.  We need to concat explicitly
+            ;; here, because phpcs really insists to get option and argument as
+            ;; a single command line argument :|
+            (eval (when (buffer-file-name)
+                    (concat "--stdin-path=" (buffer-file-name)))))
+  :standard-input t
+  :error-parser flycheck-parse-checkstyle
+  :error-filter
+  (lambda (errors)
+    (flycheck-sanitize-errors
+     (flycheck-remove-error-file-names "STDIN" errors)))
+  :modes (web-mode)
+  ;; phpcs seems to choke on empty standard input, hence skip phpcs if the
+  ;; buffer is empty, see https://github.com/flycheck/flycheck/issues/907
+  :predicate (lambda () (not (flycheck-buffer-empty-p)))
+
+  )
+(add-to-list 'flycheck-checkers 'web-mode-php-phpcs)
+
 (flycheck-define-checker web-mode-php
   "A PHP syntax checker using the PHP command line interpreter.
 
@@ -174,7 +224,10 @@ See URL `http://php.net/manual/en/features.commandline.php'."
   ((error line-start (or "Parse" "Fatal" "syntax") " error" (any ":" ",") " "
 	  (message) " in " (file-name) " on line " line line-end))
   :modes (web-mode)
+  :next-checkers ((warning . web-mode-php-phpcs))
   )
+(add-to-list 'flycheck-checkers 'web-mode-php)
+
 
 (flycheck-define-checker c/c++-gcc-2
   "A C/C++ syntax checker using GCC.
@@ -225,12 +278,20 @@ Requires GCC 4.8 or newer.  See URL `https://gcc.gnu.org/'."
   :modes (c-mode c++-mode)
   :next-checkers ((warning . c/c++-cppcheck)))
 
+(add-to-list 'flycheck-checkers 'c/c++-gcc-2)
+
+
 (add-hook 'web-mode-hook
           (lambda ()
             (when (equal web-mode-engine "php")
               ;; enable flycheck
+              (setq flycheck-phpcs-standard "PSR2")
+              (flycheck-add-next-checker 'web-mode-php 'web-mode-php-phpcs)
               (flycheck-select-checker 'web-mode-php)
-              (flycheck-mode))))
+              (flycheck-mode)
+              )
+            ))
+
 (add-hook 'c-mode-common-hook
           (lambda () 
               (flycheck-select-checker 'c/c++-gcc-2)
@@ -261,6 +322,31 @@ Requires GCC 4.8 or newer.  See URL `https://gcc.gnu.org/'."
 
 ;; Any files that end in .v should be in verilog mode
 (add-to-list 'auto-mode-alist '("\\.\\(verilog\\|template\\)\\'" . verilog-mode))
+
+;; インデントハイライトのせってい
+;; ↓めっちゃバグる
+;; (setq highlight-indent-guides-method 'character)
+;; (add-hook 'prog-mode-hook 'highlight-indent-guides-mode)
+(require 'indent-guide)
+(indent-guide-global-mode)
+;; (setq indent-guide-recursive t)
+
+;; スムーズスクロール
+(smooth-scrolling-mode)
+(setq smooth-scroll-margin 5)
+
+;; nlinum
+(global-nlinum-mode t)
+(setq nlinum-format "%3d ")
+;; (require 'nlinum-relative)
+;; (add-hook 'prog-mode-hook 'nlinum-relative-mode)
+;; (setq nlinum-relative-offset 0)
+
+(global-anzu-mode +1)
+
+(require 'undo-tree)
+(global-undo-tree-mode t)
+(global-set-key (kbd "M-/") 'undo-tree-redo)
 
 (cond 
  ((package-installed-p "anything")
@@ -345,4 +431,18 @@ Requires GCC 4.8 or newer.  See URL `https://gcc.gnu.org/'."
 ;;  ;; Your init file should contain only one such instance.
 ;;  ;; If there is more than one, they won't work right.
 ;;  '(default ((t (:inherit nil :stipple nil :background "unspecified-bg" :inverse-video nil :box nil :strike-through nil :overline nil :underline nil :slant normal :weight normal :height 1 :width normal :foundry "default" :family "default")))))
-(put 'downcase-region 'disabled nil)
+;; (put 'downcase-region 'disabled nil)
+;; (custom-set-variables
+;;  ;; custom-set-variables was added by Custom.
+;;  ;; If you edit it by hand, you could mess it up, so be careful.
+;;  ;; Your init file should contain only one such instance.
+;;  ;; If there is more than one, they won't work right.
+;;  '(custom-safe-themes
+;;    (quote
+;;     ("4e4d9f6e1f5b50805478c5630be80cce40bee4e640077e1a6a7c78490765b03f" "604648621aebec024d47c352b8e3411e63bdb384367c3dd2e8db39df81b475f5" default))))
+;; (custom-set-faces
+;;  ;; custom-set-faces was added by Custom.
+;;  ;; If you edit it by hand, you could mess it up, so be careful.
+;;  ;; Your init file should contain only one such instance.
+;;  ;; If there is more than one, they won't work right.
+;;  )
