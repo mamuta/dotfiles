@@ -94,7 +94,7 @@
 ;;     (package-refresh-contents) 
 ;;   )
 (defvar initflag 0)
-(defvar my-package '(zenburn-theme verilog-mode web-mode auto-complete flycheck go-mode badwolf-theme basic-theme nyan-mode flycheck-pos-tip ac-dabbrev c-eldoc ac-php vimrc-mode nlinum nlinum-relative undo-tree anzu))
+(defvar my-package '(zenburn-theme verilog-mode web-mode auto-complete flycheck go-mode badwolf-theme basic-theme nyan-mode flycheck-pos-tip ac-dabbrev c-eldoc ac-php vimrc-mode nlinum nlinum-relative undo-tree anzu smooth-scrolling planet-theme indent-guide))
 (dolist (package my-package)
   (unless (package-installed-p package)
     (progn
